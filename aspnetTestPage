@@ -1,0 +1,154 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
+using System.Linq;
+using System.Web;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+
+namespace WebApplication1
+{
+  public partial class Contact : Page
+  {
+    protected void Page_Load(object sender, EventArgs e)
+    {
+      GetScannedImage();
+    }
+
+    protected void GetScannedImage()
+    {
+      string cFileName = "scandocument.tiff";
+       
+
+      if (cFileName != null && cFileName.ToString().Trim().Length > 0)
+      {
+        // Extension = ConfigurationManager.AppSettings["ScanDocumentExtension"] == null ? ".tif" : ConfigurationManager.AppSettings["ScanDocumentExtension"];
+        cFileName = cFileName.Trim().Replace("/", ""); // + Extension;
+        string result = "";
+        MemoryStream ms = new MemoryStream();
+
+        ReceiveXMLStream(ref ms, cFileName, ref result);
+         
+        if (string.IsNullOrEmpty(result))
+        {
+          Response.ContentType = "image/jpeg";
+          //cFileName = HttpRuntime.AppDomainAppPath + @"\Images\scandocument.tiff";
+          //Bitmap img = new Bitmap(cFileName);
+          //img.Save(Response.OutputStream, ImageFormat.Jpeg);
+          Stream imageStream = ms;
+          System.Drawing.Image iFile = System.Drawing.Image.FromStream(imageStream);
+          ShowImage(ms, cFileName);
+
+        }
+        else
+        {
+          Response.ContentType = "image/jpeg";
+          cFileName = HttpRuntime.AppDomainAppPath + @"\Images\NoDocument.jpg";
+          Bitmap img = new Bitmap(cFileName);
+          img.Save(Response.OutputStream, ImageFormat.Jpeg);
+        }
+      }
+      else
+      {
+        Response.ContentType = "image/jpeg";
+        cFileName = HttpRuntime.AppDomainAppPath + @"\Images\NoDocument.jpg";
+        Bitmap img = new Bitmap(cFileName);
+        img.Save(Response.OutputStream, ImageFormat.Jpeg);
+      }
+
+    }
+
+
+    private void ReceiveXMLStream(ref MemoryStream stream, string fileName, ref string result)
+    {
+      int MaxScanDocSize = 10485760;
+      byte[] file = new byte[MaxScanDocSize]; //10485760
+
+      try
+      {
+        string filePath = HttpRuntime.AppDomainAppPath + @"\Images\"; ;
+
+        string path = Path.Combine(filePath, fileName);
+
+        if (File.Exists(path))
+        {
+          file = File.ReadAllBytes(path);
+          MemoryStream memoryStream = new MemoryStream(file);
+          stream = memoryStream;
+        }
+        else
+        {
+          result = "File could not be found";
+        }
+      }
+      catch (Exception ex)
+      {
+        
+      }
+    }
+
+
+    protected void ShowImage(Stream imageStream, string cFileName)
+    {
+      System.Drawing.Image iFile = System.Drawing.Image.FromStream(imageStream);
+
+      //System.Drawing.Image iFile = System.Drawing.Image.FromFile(cFileName.ToString().Trim());
+      int i = 0;
+      int frameCount = iFile.GetFrameCount(System.Drawing.Imaging.FrameDimension.Page);
+
+      List<System.Drawing.Image> imageList = new List<System.Drawing.Image>();
+      System.Drawing.Image returnImage;
+      Graphics imgGraphics;
+
+      int totalWidth = 0;
+      int nStatus = 0;
+      int totalHeight = 0;
+
+      if (cFileName.ToUpper().Trim().EndsWith("TIF") || cFileName.ToUpper().Trim().EndsWith("TIFF"))
+      {
+        if (frameCount > 0)
+        {
+          for (i = 0; i < frameCount; i++)
+          {
+            nStatus = iFile.SelectActiveFrame(System.Drawing.Imaging.FrameDimension.Page, i);
+            totalWidth = (int)Math.Max(totalWidth, (iFile.Width) * 0.4);
+            totalHeight += (int)(iFile.Height * 0.4);
+
+            returnImage = new System.Drawing.Bitmap(iFile, (int)(iFile.Width * 0.4), (int)(iFile.Height * 0.4));
+            imageList.Add(returnImage);
+          }
+        }
+      }
+      else
+      {
+        returnImage = new System.Drawing.Bitmap(iFile, (int)(iFile.Width), (int)(iFile.Height));
+        totalWidth = (int)(iFile.Width);
+        totalHeight = (int)(iFile.Height);
+
+        imageList.Add(returnImage);
+      }
+
+      iFile.Dispose();
+
+      if (frameCount > 0)
+      {
+        Bitmap appendedImage = new Bitmap(totalWidth, totalHeight);
+        imgGraphics = Graphics.FromImage(appendedImage);
+        int prevHeight = 0;
+
+        foreach (System.Drawing.Image iImage in imageList)
+        {
+          imgGraphics.DrawImage(iImage, 0, prevHeight, iImage.Width, iImage.Height);
+          prevHeight += iImage.Height;
+          iImage.Dispose();
+        }
+        appendedImage.Save(Context.Response.OutputStream, ImageFormat.Jpeg);
+        appendedImage.Dispose();
+      }
+    }
+
+
+  }
+}
